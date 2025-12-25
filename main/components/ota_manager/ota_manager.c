@@ -105,6 +105,8 @@ esp_err_t ota_manager_start_update(const char *url)
         .event_handler = ota_http_event_handler,
         .timeout_ms = 30000,         // Timeout de 30 secondes
         .keep_alive_enable = true,
+        .buffer_size = 4096,         // Buffer de réception (4KB par chunk)
+        .buffer_size_tx = 1024,      // Buffer d'émission
     };
 
     // Déterminer si c'est HTTP ou HTTPS
@@ -121,8 +123,9 @@ esp_err_t ota_manager_start_update(const char *url)
     // Configuration OTA
     esp_https_ota_config_t ota_config = {
         .http_config = &config,
-        .partial_http_download = false,       // Télécharger tout d'un coup
-        .max_http_request_size = 0,           // Pas de limite
+        .bulk_flash_erase = false,            // Effacer par petits blocs
+        .partial_http_download = true,        // Téléchargement progressif
+        .max_http_request_size = 4096,        // Télécharger par chunks de 4KB
     };
 
     ESP_LOGI(TAG, "Attempting to download firmware...");

@@ -1,0 +1,16 @@
+idf_component_register(SRCS "main.c"
+                       "components/nvs_storage/nvs_storage.c"
+                       "components/wifi_manager/wifi_manager.c"
+                       "components/dns_server/dns_server.c"
+                       "components/web_server/web_server.c"
+                       "components/mdns_service/mdns_service.c"
+                       "components/ota_manager/ota_manager.c"
+                    INCLUDE_DIRS "."
+                       "components/nvs_storage"
+                       "components/wifi_manager"
+                       "components/dns_server"
+                       "components/web_server"
+                       "components/mdns_service"
+                       "components/ota_manager"
+                    REQUIRES mdns nvs_flash esp_wifi esp_http_server esp_netif lwip json
+                            app_update esp_https_ota esp_http_client)

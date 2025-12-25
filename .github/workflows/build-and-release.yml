@@ -14,6 +14,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: 'recursive'
+        fetch-depth: 0  # Récupérer tout l'historique git pour get_version.sh
+
+    - name: Clean any cached build
+      run: |
+        rm -rf build
+        rm -rf sdkconfig sdkconfig.old
 
     - name: ESP-IDF Build
       uses: espressif/esp-idf-ci-action@v1

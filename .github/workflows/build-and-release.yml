@@ -1,0 +1,50 @@
+name: Build and Release ESP32 Firmware
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Déclenché quand vous pushez un tag du type v1.0.0, v1.0.1, etc.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: ESP-IDF Build
+      uses: espressif/esp-idf-ci-action@v1
+      with:
+        esp_idf_version: v5.3
+        target: esp32
+        path: '.'
+
+    - name: Rename binary with version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        cp build/miniot.bin build/miniot-${VERSION}.bin
+        echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/miniot-${{ env.VERSION }}.bin
+          build/miniot.bin
+        body: |
+          ## Firmware Release ${{ env.VERSION }}
+
+          ### Installation
+          1. Téléchargez le fichier `miniot-${{ env.VERSION }}.bin`
+          2. Flashez via l'interface web de votre ESP32
+          3. L'ESP32 redémarrera automatiquement avec la nouvelle version
+
+          ### Mise à jour OTA automatique
+          Votre ESP32 détectera automatiquement cette mise à jour au prochain démarrage.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

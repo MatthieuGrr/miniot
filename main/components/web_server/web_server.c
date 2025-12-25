@@ -81,6 +81,10 @@ static const char *html_page =
 "Version: <span id='firmwareVersion'>Loading...</span><br>"
 "Partition: <span id='runningPartition'>Loading...</span>"
 "</div>"
+"<button onclick='checkGithubUpdate()'>🔍 Check GitHub for Updates</button>"
+"<div id='githubUpdateInfo' style='margin:10px 0'></div>"
+"<hr style='margin:20px 0'>"
+"<h3>Manual Update</h3>"
 "<label>Firmware URL:</label>"
 "<input type='text' id='firmwareUrl' placeholder='http://192.168.1.100:8000/firmware.bin'>"
 "<button onclick='startOtaUpdate()'>⬆️ Update Firmware</button>"
@@ -184,8 +188,43 @@ static const char *html_page =
 "}catch(e){showStatus('Error starting OTA update',true);console.error('OTA failed',e);}"
 "}"
 "}"
+"async function checkGithubUpdate(){"
+"const div=document.getElementById('githubUpdateInfo');"
+"div.innerHTML='<div class=\"loading\" style=\"display:block\">Checking GitHub...</div>';"
+"try{"
+"const res=await fetch('/api/check_github_update');"
+"const data=await res.json();"
+"if(data.success){"
+"if(data.update_available){"
+"div.innerHTML='<div class=\"status success\">✅ New version available: <strong>'+data.new_version+'</strong><br>'"
+"+'Current: '+data.current_version+'<br>'"
+"+'<button onclick=\"installGithubUpdate()\">⬆️ Install Update</button></div>';"
+"}else{"
+"div.innerHTML='<div class=\"info\">✓ You are running the latest version ('+data.current_version+')</div>';"
+"}"
+"}else{"
+"div.innerHTML='<div class=\"status error\">❌ '+data.error+'</div>';"
+"}"
+"}catch(e){"
+"div.innerHTML='<div class=\"status error\">❌ Failed to check for updates</div>';"
+"console.error('Update check failed',e);"
+"}"
+"}"
+"async function installGithubUpdate(){"
+"if(confirm('Install update from GitHub? Device will reboot after update.')){"
+"try{"
+"const res=await fetch('/api/install_github_update',{method:'POST'});"
+"const data=await res.json();"
+"if(data.success){"
+"showStatus('GitHub OTA update in progress... Device will reboot automatically.',false);"
+"document.getElementById('githubUpdateInfo').innerHTML='<div class=\"status success\">⏳ Installing update...</div>';"
+"}else{showStatus('Failed to start GitHub update',true);}"
+"}catch(e){showStatus('Error starting GitHub update',true);console.error('GitHub OTA failed',e);}"
+"}"
+"}"
 "loadFirmwareInfo();"
 "loadDeviceInfo();"
+"setTimeout(checkGithubUpdate,1000);"
 "</script>"
 "</body>"
 "</html>";
@@ -462,16 +501,83 @@ static esp_err_t ota_version_handler(httpd_req_t *req)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "version", ota_manager_get_version());
-    
+
     const esp_partition_t *running = esp_ota_get_running_partition();
     cJSON_AddStringToObject(root, "partition", running->label);
-    
+
     const char *json_str = cJSON_Print(root);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, json_str);
-    
+
     free((void *)json_str);
     cJSON_Delete(root);
+    return ESP_OK;
+}
+
+/* Handler pour GET /api/check_github_update */
+static esp_err_t check_github_update_handler(httpd_req_t *req)
+{
+    ota_update_info_t info;
+    esp_err_t ret = ota_manager_check_github_update("matthieu", "miniot", &info);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "success", ret == ESP_OK);
+
+    if (ret == ESP_OK) {
+        cJSON_AddBoolToObject(root, "update_available", info.update_available);
+        cJSON_AddStringToObject(root, "current_version", ota_manager_get_version());
+
+        if (info.update_available) {
+            cJSON_AddStringToObject(root, "new_version", info.version);
+            cJSON_AddStringToObject(root, "download_url", info.download_url);
+        }
+    } else {
+        cJSON_AddStringToObject(root, "error", "Failed to check for updates");
+    }
+
+    const char *json_str = cJSON_Print(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json_str);
+
+    free((void *)json_str);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+/* Fonction de tâche pour la mise à jour GitHub */
+static void github_ota_task_function(void *param)
+{
+    ESP_LOGI(TAG, "GitHub OTA task started");
+
+    esp_err_t ret = ota_manager_update_from_github("matthieu", "miniot");
+
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "GitHub OTA update failed: %s", esp_err_to_name(ret));
+    }
+
+    vTaskDelete(NULL);
+}
+
+/* Handler pour POST /api/install_github_update */
+static esp_err_t install_github_update_handler(httpd_req_t *req)
+{
+    ESP_LOGI(TAG, "GitHub update installation requested");
+
+    // Répondre immédiatement
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "success", true);
+    cJSON_AddStringToObject(response, "message", "GitHub OTA update started");
+
+    const char *json_str = cJSON_Print(response);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json_str);
+
+    free((void *)json_str);
+    cJSON_Delete(response);
+
+    // Lancer l'OTA dans une tâche séparée
+    xTaskCreate(github_ota_task_function, "github_ota_task", 8192, NULL, 5, NULL);
+
     return ESP_OK;
 }
 
@@ -561,6 +667,20 @@ static const httpd_uri_t uri_ota_version = {
     .user_ctx  = NULL
 };
 
+static const httpd_uri_t uri_check_github_update = {
+    .uri       = "/api/check_github_update",
+    .method    = HTTP_GET,
+    .handler   = check_github_update_handler,
+    .user_ctx  = NULL
+};
+
+static const httpd_uri_t uri_install_github_update = {
+    .uri       = "/api/install_github_update",
+    .method    = HTTP_POST,
+    .handler   = install_github_update_handler,
+    .user_ctx  = NULL
+};
+
 esp_err_t web_server_start(void)
 {
     if (s_server) {
@@ -587,6 +707,8 @@ esp_err_t web_server_start(void)
         httpd_register_uri_handler(s_server, &uri_reboot);
         httpd_register_uri_handler(s_server, &uri_ota_update);
         httpd_register_uri_handler(s_server, &uri_ota_version);
+        httpd_register_uri_handler(s_server, &uri_check_github_update);
+        httpd_register_uri_handler(s_server, &uri_install_github_update);
 
         // Enregistrer les URIs pour la détection de portail captif
         httpd_register_uri_handler(s_server, &uri_generate_204);

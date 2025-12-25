@@ -54,6 +54,22 @@ void app_main(void)
                 mdns_service_announce_http(80);
             }
 
+            // Vérifier les mises à jour GitHub
+            ESP_LOGI(TAG, "Checking for firmware updates on GitHub...");
+            ota_update_info_t update_info;
+            esp_err_t ota_check = ota_manager_check_github_update("matthieu", "miniot", &update_info);
+            if (ota_check == ESP_OK) {
+                if (update_info.update_available) {
+                    ESP_LOGW(TAG, "New firmware version available: %s", update_info.version);
+                    ESP_LOGW(TAG, "Update available at: %s", update_info.download_url);
+                    ESP_LOGW(TAG, "Use the web interface to install the update");
+                } else {
+                    ESP_LOGI(TAG, "Firmware is up to date (version %s)", ota_manager_get_version());
+                }
+            } else {
+                ESP_LOGW(TAG, "Could not check for updates (this is normal if no release exists yet)");
+            }
+
             // En mode connecté, démarrer le serveur web pour permettre la reconfiguration
             ESP_LOGI(TAG, "Starting web server for configuration...");
             web_server_start();

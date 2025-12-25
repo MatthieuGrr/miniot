@@ -193,6 +193,7 @@ static const char *html_page =
 "const data=await res.json();"
 "if(data.success){"
 "showStatus('OTA update in progress... Device will reboot automatically.',false);"
+"startProgressMonitoring();"
 "}else{showStatus('Failed to start OTA update',true);}"
 "}catch(e){showStatus('Error starting OTA update',true);console.error('OTA failed',e);}"
 "}"

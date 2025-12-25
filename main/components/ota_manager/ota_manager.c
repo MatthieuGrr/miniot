@@ -107,8 +107,8 @@ esp_err_t ota_manager_start_update(const char *url)
         .event_handler = ota_http_event_handler,
         .timeout_ms = 30000,         // Timeout de 30 secondes
         .keep_alive_enable = true,
-        .buffer_size = 4096,         // Buffer de réception (4KB par chunk)
-        .buffer_size_tx = 1024,      // Buffer d'émission
+        .buffer_size = 8192,         // Buffer de réception (8KB pour gérer les headers GitHub)
+        .buffer_size_tx = 2048,      // Buffer d'émission (2KB)
     };
 
     // Déterminer si c'est HTTP ou HTTPS

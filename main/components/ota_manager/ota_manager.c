@@ -293,7 +293,7 @@ esp_err_t ota_manager_check_github_update(const char *owner, const char *repo, o
 
     // Comparer les versions
     int version_cmp = compare_versions(FIRMWARE_VERSION, info->version);
-    if (version_cmp < 0) {
+    if (version_cmp > 0) {
         info->update_available = true;
         ESP_LOGI(TAG, "New version available!");
 

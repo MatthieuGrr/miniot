@@ -31,7 +31,7 @@ jobs:
     - name: Rename binary with version
       run: |
         VERSION=${GITHUB_REF#refs/tags/}
-        cp build/miniot.bin build/miniot-${VERSION}.bin
+        sudo cp build/miniot.bin build/miniot-${VERSION}.bin
         echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
     - name: Create Release

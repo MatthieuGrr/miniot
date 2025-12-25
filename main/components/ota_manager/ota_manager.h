@@ -14,6 +14,17 @@ typedef struct {
 } ota_update_info_t;
 
 /**
+ * @brief Structure de progression OTA (partagée avec le serveur web)
+ */
+typedef struct {
+    bool in_progress;           // True si une mise à jour est en cours
+    int total_size;             // Taille totale du firmware (bytes)
+    int downloaded;             // Octets téléchargés
+    int percent;                // Pourcentage (0-100)
+    char status[64];            // Message de status
+} ota_progress_t;
+
+/**
  * @brief Initialiser le gestionnaire OTA
  *
  * Vérifie l'état des partitions et valide le firmware actuel
@@ -54,5 +65,12 @@ esp_err_t ota_manager_check_github_update(const char *owner, const char *repo, o
  * @return ESP_OK si succès
  */
 esp_err_t ota_manager_update_from_github(const char *owner, const char *repo);
+
+/**
+ * @brief Obtenir la progression actuelle de l'OTA
+ *
+ * @return Pointeur vers la structure de progression (lecture seule)
+ */
+const ota_progress_t* ota_manager_get_progress(void);
 
 #endif // OTA_MANAGER_H

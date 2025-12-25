@@ -83,6 +83,15 @@ static const char *html_page =
 "</div>"
 "<button onclick='checkGithubUpdate()'>🔍 Check GitHub for Updates</button>"
 "<div id='githubUpdateInfo' style='margin:10px 0'></div>"
+"<div id='otaProgressContainer' style='display:none;margin:15px 0;padding:15px;background:#e7f3ff;border-radius:4px'>"
+"<div style='font-weight:bold;margin-bottom:10px' id='otaStatus'>Downloading...</div>"
+"<div style='background:#ddd;border-radius:10px;overflow:hidden;height:30px'>"
+"<div id='otaProgressBar' style='background:#007bff;height:100%;width:0%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold'>"
+"<span id='otaPercent'>0%</span>"
+"</div>"
+"</div>"
+"<div style='margin-top:8px;font-size:0.9em;color:#666' id='otaDetails'>0 / 0 KB</div>"
+"</div>"
 "<hr style='margin:20px 0'>"
 "<h3>Manual Update</h3>"
 "<label>Firmware URL:</label>"
@@ -210,14 +219,40 @@ static const char *html_page =
 "console.error('Update check failed',e);"
 "}"
 "}"
+"let progressInterval=null;"
+"function startProgressMonitoring(){"
+"document.getElementById('otaProgressContainer').style.display='block';"
+"if(progressInterval)clearInterval(progressInterval);"
+"progressInterval=setInterval(async()=>{"
+"try{"
+"const res=await fetch('/api/ota_progress');"
+"const data=await res.json();"
+"if(data.in_progress){"
+"document.getElementById('otaProgressBar').style.width=data.percent+'%';"
+"document.getElementById('otaPercent').textContent=data.percent+'%';"
+"document.getElementById('otaStatus').textContent=data.status;"
+"const downloadedKB=(data.downloaded/1024).toFixed(1);"
+"const totalKB=(data.total_size/1024).toFixed(1);"
+"document.getElementById('otaDetails').textContent=downloadedKB+' / '+totalKB+' KB';"
+"}else{"
+"clearInterval(progressInterval);"
+"if(data.percent===100){"
+"document.getElementById('otaStatus').textContent='✅ '+data.status;"
+"}else{"
+"document.getElementById('otaProgressContainer').style.display='none';"
+"}"
+"}"
+"}catch(e){console.error('Progress fetch failed',e);}"
+"},500);"
+"}"
 "async function installGithubUpdate(){"
 "if(confirm('Install update from GitHub? Device will reboot after update.')){"
 "try{"
 "const res=await fetch('/api/install_github_update',{method:'POST'});"
 "const data=await res.json();"
 "if(data.success){"
-"showStatus('GitHub OTA update in progress... Device will reboot automatically.',false);"
 "document.getElementById('githubUpdateInfo').innerHTML='<div class=\"status success\">⏳ Installing update...</div>';"
+"startProgressMonitoring();"
 "}else{showStatus('Failed to start GitHub update',true);}"
 "}catch(e){showStatus('Error starting GitHub update',true);console.error('GitHub OTA failed',e);}"
 "}"
@@ -581,6 +616,28 @@ static esp_err_t install_github_update_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* Handler pour GET /api/ota_progress - retourne la progression actuelle */
+static esp_err_t ota_progress_handler(httpd_req_t *req)
+{
+    const ota_progress_t *progress = ota_manager_get_progress();
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "in_progress", progress->in_progress);
+    cJSON_AddNumberToObject(root, "total_size", progress->total_size);
+    cJSON_AddNumberToObject(root, "downloaded", progress->downloaded);
+    cJSON_AddNumberToObject(root, "percent", progress->percent);
+    cJSON_AddStringToObject(root, "status", progress->status);
+
+    const char *json_str = cJSON_Print(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json_str);
+
+    free((void *)json_str);
+    cJSON_Delete(root);
+
+    return ESP_OK;
+}
+
 /* Définition des URIs */
 static const httpd_uri_t uri_index = {
     .uri       = "/",
@@ -681,6 +738,13 @@ static const httpd_uri_t uri_install_github_update = {
     .user_ctx  = NULL
 };
 
+static const httpd_uri_t uri_ota_progress = {
+    .uri       = "/api/ota_progress",
+    .method    = HTTP_GET,
+    .handler   = ota_progress_handler,
+    .user_ctx  = NULL
+};
+
 esp_err_t web_server_start(void)
 {
     if (s_server) {
@@ -710,6 +774,7 @@ esp_err_t web_server_start(void)
         httpd_register_uri_handler(s_server, &uri_ota_version);
         httpd_register_uri_handler(s_server, &uri_check_github_update);
         httpd_register_uri_handler(s_server, &uri_install_github_update);
+        httpd_register_uri_handler(s_server, &uri_ota_progress);
 
         // Enregistrer les URIs pour la détection de portail captif
         httpd_register_uri_handler(s_server, &uri_generate_204);

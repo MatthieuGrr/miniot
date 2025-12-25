@@ -17,6 +17,15 @@ static const char *TAG = "OTA_MANAGER";
 static char http_response_buffer[HTTP_RESPONSE_BUFFER_SIZE];
 static int http_response_len = 0;
 
+// Variable globale pour la progression OTA (accessible depuis le serveur web)
+static ota_progress_t ota_progress = {
+    .in_progress = false,
+    .total_size = 0,
+    .downloaded = 0,
+    .percent = 0,
+    .status = "Idle"
+};
+
 /**
  * ÉTAPE A : Initialisation - Valider le firmware actuel
  */
@@ -66,14 +75,7 @@ static esp_err_t ota_http_event_handler(esp_http_client_event_t *evt)
         ESP_LOGD(TAG, "Header: %s: %s", evt->header_key, evt->header_value);
         break;
     case HTTP_EVENT_ON_DATA:
-        // Afficher la progression tous les 10KB
-        if (evt->data_len > 0) {
-            static int total_downloaded = 0;
-            total_downloaded += evt->data_len;
-            if (total_downloaded % 10240 == 0) {
-                ESP_LOGI(TAG, "Downloaded: %d bytes", total_downloaded);
-            }
-        }
+        // Ne rien afficher ici, on gère la progression dans la fonction principale
         break;
     case HTTP_EVENT_ON_FINISH:
         ESP_LOGI(TAG, "HTTP download finished");
@@ -129,22 +131,100 @@ esp_err_t ota_manager_start_update(const char *url)
     };
 
     ESP_LOGI(TAG, "Attempting to download firmware...");
-    
-    // FONCTION MAGIQUE : Fait tout le travail !
-    // - Télécharge le .bin
-    // - Vérifie qu'il y a assez d'espace
-    // - Écrit sur la partition inactive (ota_0 ou ota_1)
-    // - Vérifie le checksum
-    // - Marque la nouvelle partition comme prête à booter
-    esp_err_t ret = esp_https_ota(&ota_config);
-    
+
+    // Initialiser la progression
+    ota_progress.in_progress = true;
+    ota_progress.total_size = 0;
+    ota_progress.downloaded = 0;
+    ota_progress.percent = 0;
+    snprintf(ota_progress.status, sizeof(ota_progress.status), "Connecting...");
+
+    // Démarrer l'OTA avec l'API avancée pour avoir le contrôle de la progression
+    esp_https_ota_handle_t ota_handle = NULL;
+    esp_err_t ret = esp_https_ota_begin(&ota_config, &ota_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "OTA begin failed: %s", esp_err_to_name(ret));
+        snprintf(ota_progress.status, sizeof(ota_progress.status), "Failed to start");
+        ota_progress.in_progress = false;
+        return ret;
+    }
+
+    // Obtenir la taille totale de l'image
+    int total_size = esp_https_ota_get_image_size(ota_handle);
+    ESP_LOGI(TAG, "Firmware size: %d bytes (%.2f KB)", total_size, total_size / 1024.0);
+
+    ota_progress.total_size = total_size;
+    snprintf(ota_progress.status, sizeof(ota_progress.status), "Downloading...");
+
+    // Télécharger et flasher par petits morceaux avec barre de progression
+    int downloaded = 0;
+    int last_percent = -1;
+
+    while (1) {
+        ret = esp_https_ota_perform(ota_handle);
+        if (ret != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+            break;
+        }
+
+        // Calculer la progression
+        downloaded = esp_https_ota_get_image_len_read(ota_handle);
+        int percent = (downloaded * 100) / total_size;
+
+        // Mettre à jour la progression globale
+        ota_progress.downloaded = downloaded;
+        ota_progress.percent = percent;
+
+        // Afficher la barre de progression uniquement quand le pourcentage change
+        if (percent != last_percent) {
+            // Créer une barre visuelle [=====>    ]
+            char progress_bar[52];  // [50 caractères] + \0
+            int filled = percent / 2;  // 50 caractères max
+            int i;
+
+            progress_bar[0] = '[';
+            for (i = 1; i <= 50; i++) {
+                if (i < filled) {
+                    progress_bar[i] = '=';
+                } else if (i == filled) {
+                    progress_bar[i] = '>';
+                } else {
+                    progress_bar[i] = ' ';
+                }
+            }
+            progress_bar[51] = ']';
+            progress_bar[52] = '\0';
+
+            ESP_LOGI(TAG, "Progress: %s %d%% (%d / %d bytes)",
+                     progress_bar, percent, downloaded, total_size);
+            last_percent = percent;
+        }
+    }
+
+    if (esp_https_ota_is_complete_data_received(ota_handle) != true) {
+        ESP_LOGE(TAG, "Complete data was not received");
+        snprintf(ota_progress.status, sizeof(ota_progress.status), "Download incomplete");
+        ota_progress.in_progress = false;
+        esp_https_ota_abort(ota_handle);
+        return ESP_FAIL;
+    }
+
+    snprintf(ota_progress.status, sizeof(ota_progress.status), "Verifying...");
+
+    // Finaliser l'OTA
+    ret = esp_https_ota_finish(ota_handle);
+
     if (ret == ESP_OK) {
         ESP_LOGI(TAG, "OTA update completed successfully!");
+        snprintf(ota_progress.status, sizeof(ota_progress.status), "Success! Rebooting...");
+        ota_progress.percent = 100;
         ESP_LOGI(TAG, "Rebooting in 3 seconds...");
         vTaskDelay(3000 / portTICK_PERIOD_MS);
         esp_restart();  // Redémarrer pour booter sur le nouveau firmware
     } else {
         ESP_LOGE(TAG, "OTA update failed: %s", esp_err_to_name(ret));
+        snprintf(ota_progress.status, sizeof(ota_progress.status), "Update failed");
+        ota_progress.in_progress = false;
+        esp_https_ota_abort(ota_handle);
         return ret;
     }
 
@@ -357,4 +437,12 @@ esp_err_t ota_manager_update_from_github(const char *owner, const char *repo)
 
     ESP_LOGI(TAG, "Starting update to version %s", info.version);
     return ota_manager_start_update(info.download_url);
+}
+
+/**
+ * ÉTAPE I : Obtenir la progression OTA
+ */
+const ota_progress_t* ota_manager_get_progress(void)
+{
+    return &ota_progress;
 }

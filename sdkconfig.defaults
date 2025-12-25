@@ -1,0 +1,9 @@
+# ESP32-S3 configuration
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash size - 4MB
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Custom partition table for OTA
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

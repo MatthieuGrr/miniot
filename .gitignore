@@ -1,5 +1,6 @@
 # Build directory
 build/
+sdkconfig
 sdkconfig.old
 
 # Generated version file (created during build)
@@ -7,6 +8,7 @@ version.h
 
 # Dependencies
 dependencies/
+dependencies.lock
 managed_components/
 .managed_components
 

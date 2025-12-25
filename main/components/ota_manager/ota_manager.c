@@ -105,16 +105,17 @@ esp_err_t ota_manager_start_update(const char *url)
         .event_handler = ota_http_event_handler,
         .timeout_ms = 30000,         // Timeout de 30 secondes
         .keep_alive_enable = true,
-        .skip_cert_common_name_check = true,  // Pour HTTP simple
     };
 
-    // IMPORTANT: Pour HTTP (pas HTTPS), on doit définir au moins une option
-    // de sécurité même si on ne l'utilise pas. C'est une exigence d'esp_https_ota.
-    // On met cert_pem à une string vide pour satisfaire la validation.
-    static const char dummy_cert[] = "";
-    if (strncmp(url, "http://", 7) == 0) {
+    // Déterminer si c'est HTTP ou HTTPS
+    if (strncmp(url, "https://", 8) == 0) {
+        // HTTPS : utiliser le bundle de certificats pour une connexion sécurisée
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+    } else if (strncmp(url, "http://", 7) == 0) {
         // HTTP simple : définir cert_pem pour passer la validation
+        static const char dummy_cert[] = "";
         config.cert_pem = dummy_cert;
+        config.skip_cert_common_name_check = true;
     }
 
     // Configuration OTA

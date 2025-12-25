@@ -194,13 +194,6 @@
 /home/matthieu/github/miniot/build/esp-idf/esp_partition/CMakeFiles/install/local.dir
 /home/matthieu/github/miniot/build/esp-idf/esp_partition/CMakeFiles/install/strip.dir
 /home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/__idf_app_update.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/blank_ota_data.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/read-otadata.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/read_otadata.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/erase-otadata.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/erase_otadata.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/otadata-flash.dir
-/home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/encrypted-otadata-flash.dir
 /home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/edit_cache.dir
 /home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/rebuild_cache.dir
 /home/matthieu/github/miniot/build/esp-idf/app_update/CMakeFiles/list_install_components.dir

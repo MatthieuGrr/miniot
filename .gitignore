@@ -1,0 +1,25 @@
+# Build directory
+build/
+sdkconfig.old
+
+# Generated version file (created during build)
+version.h
+
+# Dependencies
+dependencies/
+managed_components/
+.managed_components
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

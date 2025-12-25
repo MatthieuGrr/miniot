@@ -12,5 +12,6 @@ idf_component_register(SRCS "main.c"
                        "components/web_server"
                        "components/mdns_service"
                        "components/ota_manager"
+                       "${CMAKE_BINARY_DIR}"
                     REQUIRES mdns nvs_flash esp_wifi esp_http_server esp_netif lwip json
                             app_update esp_https_ota esp_http_client)

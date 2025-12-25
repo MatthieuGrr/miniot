@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "miniot",
-    "project_version":    "1",
+    "project_version":    "v1.0.0-dirty",
     "project_path":       "/home/matthieu/github/miniot",
     "idf_path":           "/home/matthieu/esp/v5.2/esp-idf",
     "build_dir":          "/home/matthieu/github/miniot/build",
@@ -821,7 +821,7 @@
             "managed_priv_reqs": [ "espressif__mdns" ],
             "file": "/home/matthieu/github/miniot/build/esp-idf/main/libmain.a",
             "sources": [ "/home/matthieu/github/miniot/main/main.c", "/home/matthieu/github/miniot/main/components/nvs_storage/nvs_storage.c", "/home/matthieu/github/miniot/main/components/wifi_manager/wifi_manager.c", "/home/matthieu/github/miniot/main/components/dns_server/dns_server.c", "/home/matthieu/github/miniot/main/components/web_server/web_server.c", "/home/matthieu/github/miniot/main/components/mdns_service/mdns_service.c", "/home/matthieu/github/miniot/main/components/ota_manager/ota_manager.c" ],
-            "include_dirs": [ ".", "components/nvs_storage", "components/wifi_manager", "components/dns_server", "components/web_server", "components/mdns_service", "components/ota_manager" ]
+            "include_dirs": [ ".", "components/nvs_storage", "components/wifi_manager", "components/dns_server", "components/web_server", "components/mdns_service", "components/ota_manager", "/home/matthieu/github/miniot/build" ]
         },
         "mbedtls": {
             "alias": "idf::mbedtls",
@@ -2146,7 +2146,7 @@
             "priv_reqs": [ "espressif__mdns" ],
             "managed_reqs": [],
             "managed_priv_reqs": [ "espressif__mdns" ],
-            "include_dirs": [ ".", "components/nvs_storage", "components/wifi_manager", "components/dns_server", "components/web_server", "components/mdns_service", "components/ota_manager" ]
+            "include_dirs": [ ".", "components/nvs_storage", "components/wifi_manager", "components/dns_server", "components/web_server", "components/mdns_service", "components/ota_manager", "/home/matthieu/github/miniot/build" ]
         },
         "espressif__mdns": {
             "alias": "idf::espressif__mdns",

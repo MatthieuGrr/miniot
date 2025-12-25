@@ -1,0 +1,7 @@
+#ifndef VERSION_H
+#define VERSION_H
+
+// Version automatiquement générée depuis git lors de la compilation
+#define FIRMWARE_VERSION "@FIRMWARE_VERSION@"
+
+#endif // VERSION_H

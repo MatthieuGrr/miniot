@@ -5,12 +5,10 @@
 #include "esp_https_ota.h"
 #include "esp_app_format.h"
 #include "cJSON.h"
+#include "version.h"
 #include <string.h>
 
 static const char *TAG = "OTA_MANAGER";
-
-// Version du firmware (à incrémenter à chaque release)
-#define FIRMWARE_VERSION "v1.0.0"
 
 // Buffer pour stocker la réponse HTTP de l'API GitHub
 #define HTTP_RESPONSE_BUFFER_SIZE 4096

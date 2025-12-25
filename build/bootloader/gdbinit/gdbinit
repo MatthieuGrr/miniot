@@ -1,2 +1,0 @@
-source /home/matthieu/github/miniot/build/bootloader/gdbinit/symbols
-source /home/matthieu/github/miniot/build/bootloader/gdbinit/connect

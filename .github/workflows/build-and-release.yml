@@ -23,6 +23,7 @@ jobs:
       run: |
         rm -rf build
         rm -rf sdkconfig sdkconfig.old
+        rm -f VERSION
 
     - name: ESP-IDF Build
       uses: espressif/esp-idf-ci-action@v1

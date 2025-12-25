@@ -7,3 +7,14 @@ CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 # Custom partition table for OTA
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# HTTP Server configuration - Augmenter les limites pour éviter "Request Header Fields Too Large"
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_HTTPD_MAX_URI_LEN=512
+
+# HTTPS/TLS Configuration - Activer le bundle de certificats racines
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+
+# Augmenter la taille du stack pour éviter les stack overflow avec HTTPS
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

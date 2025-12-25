@@ -38,7 +38,7 @@ const char* ota_manager_get_version(void);
 /**
  * @brief Vérifier si une nouvelle version est disponible sur GitHub
  *
- * @param owner Propriétaire du repository (ex: "matthieu")
+ * @param owner Propriétaire du repository (ex: "MatthieuGrr")
  * @param repo Nom du repository (ex: "miniot")
  * @param info Structure qui sera remplie avec les infos de mise à jour
  * @return ESP_OK si la vérification a réussi (même si pas de MAJ disponible)

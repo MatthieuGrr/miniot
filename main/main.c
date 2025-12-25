@@ -54,10 +54,14 @@ void app_main(void)
                 mdns_service_announce_http(80);
             }
 
+            // Attendre que le DNS soit prêt (2 secondes)
+            ESP_LOGI(TAG, "Waiting for DNS to be ready...");
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+
             // Vérifier les mises à jour GitHub
             ESP_LOGI(TAG, "Checking for firmware updates on GitHub...");
             ota_update_info_t update_info;
-            esp_err_t ota_check = ota_manager_check_github_update("matthieu", "miniot", &update_info);
+            esp_err_t ota_check = ota_manager_check_github_update("MatthieuGrr", "miniot", &update_info);
             if (ota_check == ESP_OK) {
                 if (update_info.update_available) {
                     ESP_LOGW(TAG, "New firmware version available: %s", update_info.version);

@@ -4,6 +4,7 @@
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "esp_app_format.h"
+#include "esp_crt_bundle.h"
 #include "cJSON.h"
 #include "version.h"
 #include <string.h>
@@ -11,7 +12,8 @@
 static const char *TAG = "OTA_MANAGER";
 
 // Buffer pour stocker la réponse HTTP de l'API GitHub
-#define HTTP_RESPONSE_BUFFER_SIZE 4096
+// Les releases GitHub peuvent contenir beaucoup de métadonnées (changelog, assets, etc.)
+#define HTTP_RESPONSE_BUFFER_SIZE 8192
 static char http_response_buffer[HTTP_RESPONSE_BUFFER_SIZE];
 static int http_response_len = 0;
 
@@ -235,12 +237,13 @@ esp_err_t ota_manager_check_github_update(const char *owner, const char *repo, o
     http_response_len = 0;
     memset(http_response_buffer, 0, HTTP_RESPONSE_BUFFER_SIZE);
 
-    // Configuration du client HTTP
+    // Configuration du client HTTP avec vérification SSL sécurisée
     esp_http_client_config_t config = {
         .url = api_url,
         .event_handler = github_http_event_handler,
         .timeout_ms = 10000,
         .user_agent = "ESP32-OTA-Updater/1.0",
+        .crt_bundle_attach = esp_crt_bundle_attach,  // Utiliser le bundle de certificats racines
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);

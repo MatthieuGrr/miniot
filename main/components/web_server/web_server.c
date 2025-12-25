@@ -518,7 +518,7 @@ static esp_err_t ota_version_handler(httpd_req_t *req)
 static esp_err_t check_github_update_handler(httpd_req_t *req)
 {
     ota_update_info_t info;
-    esp_err_t ret = ota_manager_check_github_update("matthieu", "miniot", &info);
+    esp_err_t ret = ota_manager_check_github_update("MatthieuGrr", "miniot", &info);
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "success", ret == ESP_OK);
@@ -549,7 +549,7 @@ static void github_ota_task_function(void *param)
 {
     ESP_LOGI(TAG, "GitHub OTA task started");
 
-    esp_err_t ret = ota_manager_update_from_github("matthieu", "miniot");
+    esp_err_t ret = ota_manager_update_from_github("MatthieuGrr", "miniot");
 
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "GitHub OTA update failed: %s", esp_err_to_name(ret));
@@ -694,6 +694,7 @@ esp_err_t web_server_start(void)
     config.max_uri_handlers = 16;  // Augmenter le nombre de handlers
     config.max_resp_headers = 16;  // Augmenter les headers de réponse
     config.recv_wait_timeout = 10; // Timeout de réception
+    config.uri_match_fn = httpd_uri_match_wildcard;  // Support pour les wildcards
 
     ESP_LOGI(TAG, "Starting web server on port %d", config.server_port);
 

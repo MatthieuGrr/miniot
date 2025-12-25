@@ -50,7 +50,7 @@ static const char *html_page =
 "</head>"
 "<body>"
 "<div class='container'>"
-"<h1>🏠 MiniOT Configuration</h1>"
+"<h1>MiniOT Configuration</h1>"
 "<div id='statusMsg'></div>"
 "<div class='info' id='deviceInfo'>"
 "<strong>Device Info:</strong><br>"

@@ -9,6 +9,7 @@
 #include "freertos/task.h"
 #include <string.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include "ota_manager.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -475,7 +476,7 @@ static bool is_valid_password(const char *password)
 static bool is_valid_ap_timeout(uint32_t timeout)
 {
     if (timeout < 10 || timeout > 300) {
-        ESP_LOGW(TAG, "AP timeout validation failed: %u (must be 10-300 seconds)", timeout);
+        ESP_LOGW(TAG, "AP timeout validation failed: %" PRIu32 " (must be 10-300 seconds)", timeout);
         return false;
     }
     return true;

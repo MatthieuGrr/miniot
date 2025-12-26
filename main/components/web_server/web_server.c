@@ -921,6 +921,7 @@ esp_err_t web_server_start(void)
     // Configuration HTTP standard
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.lru_purge_enable = true;
+    config.stack_size = 8192;  // Augmenter le stack pour éviter overflow
     config.max_uri_handlers = 16;
     config.max_resp_headers = 16;
     config.recv_wait_timeout = 10;

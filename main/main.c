@@ -12,6 +12,33 @@
 
 static const char *TAG = "MAIN";
 
+// Constants
+#define DNS_INIT_DELAY_MS 2000
+#define MAIN_LOOP_DELAY_MS 10000
+
+/**
+ * Start AP mode with captive portal and web server
+ * Used for initial setup and when WiFi connection fails
+ */
+static void start_ap_mode(bool is_first_boot)
+{
+    ESP_LOGI(TAG, "Starting Access Point mode...");
+    ESP_ERROR_CHECK(wifi_manager_start_ap());
+
+    ESP_LOGI(TAG, "Starting DNS captive portal...");
+    ESP_ERROR_CHECK(dns_server_start());
+
+    ESP_LOGI(TAG, "Starting web server...");
+    ESP_ERROR_CHECK(web_server_start());
+
+    if (is_first_boot) {
+        ESP_LOGI(TAG, "=== MiniOT Ready (AP Mode - First Boot) ===");
+    } else {
+        ESP_LOGI(TAG, "=== MiniOT Ready (AP Mode) ===");
+    }
+    ESP_LOGI(TAG, "Connect to WiFi network and navigate to http://192.168.4.1");
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "=== MiniOT Starting ===");
@@ -54,9 +81,9 @@ void app_main(void)
                 mdns_service_announce_http(80);
             }
 
-            // Attendre que le DNS soit prêt (2 secondes)
+            // Attendre que le DNS soit prêt
             ESP_LOGI(TAG, "Waiting for DNS to be ready...");
-            vTaskDelay(2000 / portTICK_PERIOD_MS);
+            vTaskDelay(DNS_INIT_DELAY_MS / portTICK_PERIOD_MS);
 
             // Vérifier les mises à jour GitHub
             ESP_LOGI(TAG, "Checking for firmware updates on GitHub...");
@@ -85,44 +112,18 @@ void app_main(void)
             ESP_LOGW(TAG, "Failed to connect to WiFi, switching to AP mode");
             wifi_manager_stop();
 
-            // Démarrer le mode Access Point
-            ESP_LOGI(TAG, "Starting Access Point mode...");
-            ESP_ERROR_CHECK(wifi_manager_start_ap());
-
-            // Démarrer le serveur DNS captif
-            ESP_LOGI(TAG, "Starting DNS captive portal...");
-            ESP_ERROR_CHECK(dns_server_start());
-
-            // Démarrer le serveur web
-            ESP_LOGI(TAG, "Starting web server...");
-            ESP_ERROR_CHECK(web_server_start());
-
-            ESP_LOGI(TAG, "=== MiniOT Ready (AP Mode) ===");
-            ESP_LOGI(TAG, "Connect to WiFi network and navigate to http://192.168.4.1");
+            start_ap_mode(false);
         }
     } else {
         // Pas de configuration trouvée, premier boot ou après factory reset
         ESP_LOGI(TAG, "No WiFi configuration found, starting in AP mode for initial setup");
 
-        // Démarrer le mode Access Point
-        ESP_LOGI(TAG, "Starting Access Point mode...");
-        ESP_ERROR_CHECK(wifi_manager_start_ap());
-
-        // Démarrer le serveur DNS captif
-        ESP_LOGI(TAG, "Starting DNS captive portal...");
-        ESP_ERROR_CHECK(dns_server_start());
-
-        // Démarrer le serveur web
-        ESP_LOGI(TAG, "Starting web server...");
-        ESP_ERROR_CHECK(web_server_start());
-
-        ESP_LOGI(TAG, "=== MiniOT Ready (AP Mode - First Boot) ===");
-        ESP_LOGI(TAG, "Connect to WiFi network and navigate to http://192.168.4.1");
+        start_ap_mode(true);
     }
 
     // Boucle principale
     while (1) {
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(MAIN_LOOP_DELAY_MS / portTICK_PERIOD_MS);
 
         // Surveillance de l'état du WiFi
         wifi_manager_state_t state = wifi_manager_get_state();

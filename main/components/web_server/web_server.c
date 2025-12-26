@@ -8,12 +8,22 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
+#include <ctype.h>
 #include "ota_manager.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
 static const char *TAG = "WEB_SERVER";
 static httpd_handle_t s_server = NULL;
+
+// Constants
+#define OTA_START_TIMEOUT_SEC 2
+#define OTA_COMPLETION_TIMEOUT_SEC 5
+#define OTA_PROGRESS_POLL_INTERVAL_MS 500
+
+// Macro pour convertir les nombres en chaînes
+#define XSTR(x) #x
+#define STR(x) XSTR(x)
 
 // Déclarations des pages HTML (définis plus bas)
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -243,15 +253,18 @@ static const char *html_page =
 "document.getElementById('otaDetails').textContent=downloadedKB+' / '+totalKB+' KB';"
 "}else{"
 "const elapsed=(Date.now()-otaStartTime)/1000;"
+// Wait OTA_START_TIMEOUT_SEC for OTA task to start
 "if(elapsed<2){return;}"
 "clearInterval(progressInterval);"
 "if(data.percent===100){"
 "document.getElementById('otaStatus').textContent='✅ '+data.status;"
+// Hide progress after OTA_COMPLETION_TIMEOUT_SEC if not complete
 "}else if(elapsed>5){"
 "document.getElementById('otaProgressContainer').style.display='none';"
 "}"
 "}"
 "}catch(e){console.error('Progress fetch failed',e);}"
+// Poll interval: OTA_PROGRESS_POLL_INTERVAL_MS
 "},500);"
 "}"
 "async function installGithubUpdate(){"
@@ -374,6 +387,100 @@ static esp_err_t scan_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/**
+ * @brief Valide un SSID WiFi
+ *
+ * Vérifie que le SSID:
+ * - N'est pas NULL
+ * - A une longueur entre 1 et 32 caractères
+ * - Ne contient que des caractères imprimables
+ *
+ * @param ssid Le SSID à valider
+ * @return true si valide, false sinon
+ */
+static bool is_valid_ssid(const char *ssid)
+{
+    if (!ssid) {
+        ESP_LOGW(TAG, "SSID validation failed: NULL pointer");
+        return false;
+    }
+
+    size_t len = strlen(ssid);
+    if (len == 0 || len > 32) {
+        ESP_LOGW(TAG, "SSID validation failed: invalid length %d (must be 1-32)", len);
+        return false;
+    }
+
+    // Vérifier que tous les caractères sont imprimables
+    for (size_t i = 0; i < len; i++) {
+        if (!isprint((unsigned char)ssid[i])) {
+            ESP_LOGW(TAG, "SSID validation failed: non-printable character at position %d", i);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @brief Valide un mot de passe WiFi
+ *
+ * Vérifie que le mot de passe:
+ * - N'est pas NULL
+ * - A une longueur entre 0 et 63 caractères (0 = réseau ouvert)
+ * - Ne contient que des caractères imprimables
+ * - Si non vide, a au moins 8 caractères (norme WPA2)
+ *
+ * @param password Le mot de passe à valider
+ * @return true si valide, false sinon
+ */
+static bool is_valid_password(const char *password)
+{
+    if (!password) {
+        ESP_LOGW(TAG, "Password validation failed: NULL pointer");
+        return false;
+    }
+
+    size_t len = strlen(password);
+
+    // Le mot de passe peut être vide (réseau ouvert)
+    // Mais s'il est présent, il doit faire au moins 8 caractères (WPA2 minimum)
+    if (len > 0 && len < 8) {
+        ESP_LOGW(TAG, "Password validation failed: too short %d (minimum 8 for WPA2)", len);
+        return false;
+    }
+
+    if (len > 63) {
+        ESP_LOGW(TAG, "Password validation failed: too long %d (maximum 63)", len);
+        return false;
+    }
+
+    // Vérifier que tous les caractères sont imprimables
+    for (size_t i = 0; i < len; i++) {
+        if (!isprint((unsigned char)password[i])) {
+            ESP_LOGW(TAG, "Password validation failed: non-printable character at position %d", i);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @brief Valide le timeout du point d'accès
+ *
+ * @param timeout Timeout en secondes
+ * @return true si valide (entre 10 et 300 secondes), false sinon
+ */
+static bool is_valid_ap_timeout(uint32_t timeout)
+{
+    if (timeout < 10 || timeout > 300) {
+        ESP_LOGW(TAG, "AP timeout validation failed: %u (must be 10-300 seconds)", timeout);
+        return false;
+    }
+    return true;
+}
+
 /* Handler pour POST /api/configure */
 static esp_err_t configure_handler(httpd_req_t *req)
 {
@@ -396,25 +503,58 @@ static esp_err_t configure_handler(httpd_req_t *req)
     cJSON *timeout_json = cJSON_GetObjectItem(root, "ap_timeout");
 
     bool success = false;
-    if (ssid_json && cJSON_IsString(ssid_json)) {
-        miniot_wifi_config_t config = {0};
-        strncpy(config.ssid, ssid_json->valuestring, MAX_SSID_LEN - 1);
+    const char *error_msg = NULL;
 
+    // Validation du SSID (obligatoire)
+    if (!ssid_json || !cJSON_IsString(ssid_json)) {
+        error_msg = "Missing or invalid SSID";
+        ESP_LOGW(TAG, "Configuration failed: %s", error_msg);
+    } else if (!is_valid_ssid(ssid_json->valuestring)) {
+        error_msg = "Invalid SSID format";
+        ESP_LOGW(TAG, "Configuration failed: %s", error_msg);
+    } else {
+        // SSID valide, vérifier le mot de passe
+        const char *password = "";
         if (password_json && cJSON_IsString(password_json)) {
-            strncpy(config.password, password_json->valuestring, MAX_PASSWORD_LEN - 1);
+            password = password_json->valuestring;
         }
 
-        if (timeout_json && cJSON_IsNumber(timeout_json)) {
-            config.ap_timeout = timeout_json->valueint;
+        if (!is_valid_password(password)) {
+            error_msg = "Invalid password format";
+            ESP_LOGW(TAG, "Configuration failed: %s", error_msg);
         } else {
-            config.ap_timeout = DEFAULT_AP_TIMEOUT;
-        }
+            // Vérifier le timeout
+            uint32_t timeout = DEFAULT_AP_TIMEOUT;
+            if (timeout_json && cJSON_IsNumber(timeout_json)) {
+                timeout = (uint32_t)timeout_json->valueint;
+                if (!is_valid_ap_timeout(timeout)) {
+                    error_msg = "Invalid timeout (must be 10-300 seconds)";
+                    ESP_LOGW(TAG, "Configuration failed: %s", error_msg);
+                }
+            }
 
-        config.is_configured = true;
+            // Si tout est valide, sauvegarder
+            if (!error_msg) {
+                miniot_wifi_config_t config = {0};
+                strncpy(config.ssid, ssid_json->valuestring, MAX_SSID_LEN - 1);
+                config.ssid[MAX_SSID_LEN - 1] = '\0';  // Assurer la terminaison
 
-        if (nvs_storage_save_wifi_config(&config) == ESP_OK) {
-            success = true;
-            ESP_LOGI(TAG, "WiFi configuration saved, scheduling reboot...");
+                if (strlen(password) > 0) {
+                    strncpy(config.password, password, MAX_PASSWORD_LEN - 1);
+                    config.password[MAX_PASSWORD_LEN - 1] = '\0';  // Assurer la terminaison
+                }
+
+                config.ap_timeout = timeout;
+                config.is_configured = true;
+
+                if (nvs_storage_save_wifi_config(&config) == ESP_OK) {
+                    success = true;
+                    ESP_LOGI(TAG, "WiFi configuration saved, scheduling reboot...");
+                } else {
+                    error_msg = "Failed to save configuration";
+                    ESP_LOGE(TAG, "Configuration failed: %s", error_msg);
+                }
+            }
         }
     }
 
@@ -422,6 +562,9 @@ static esp_err_t configure_handler(httpd_req_t *req)
 
     cJSON *response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "success", success);
+    if (error_msg) {
+        cJSON_AddStringToObject(response, "error", error_msg);
+    }
 
     const char *json_str = cJSON_Print(response);
     httpd_resp_set_type(req, "application/json");
@@ -775,15 +918,15 @@ esp_err_t web_server_start(void)
         return ESP_OK;
     }
 
+    // Configuration HTTP standard
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.lru_purge_enable = true;
-    config.stack_size = 8192;
-    config.max_uri_handlers = 16;  // Augmenter le nombre de handlers
-    config.max_resp_headers = 16;  // Augmenter les headers de réponse
-    config.recv_wait_timeout = 10; // Timeout de réception
-    config.uri_match_fn = httpd_uri_match_wildcard;  // Support pour les wildcards
+    config.max_uri_handlers = 16;
+    config.max_resp_headers = 16;
+    config.recv_wait_timeout = 10;
+    config.uri_match_fn = httpd_uri_match_wildcard;
 
-    ESP_LOGI(TAG, "Starting web server on port %d", config.server_port);
+    ESP_LOGI(TAG, "Starting HTTP server on port %d", config.server_port);
 
     if (httpd_start(&s_server, &config) == ESP_OK) {
         ESP_LOGI(TAG, "Registering URI handlers");
@@ -805,18 +948,18 @@ esp_err_t web_server_start(void)
         httpd_register_uri_handler(s_server, &uri_hotspot_detect);
         httpd_register_uri_handler(s_server, &uri_success_txt);
 
-        ESP_LOGI(TAG, "Web server started successfully with captive portal support");
+        ESP_LOGI(TAG, "HTTP server started successfully with captive portal support");
         return ESP_OK;
     }
 
-    ESP_LOGE(TAG, "Failed to start web server");
+    ESP_LOGE(TAG, "Failed to start HTTP server");
     return ESP_FAIL;
 }
 
 esp_err_t web_server_stop(void)
 {
     if (s_server) {
-        ESP_LOGI(TAG, "Stopping web server");
+        ESP_LOGI(TAG, "Stopping HTTP server");
         httpd_stop(s_server);
         s_server = NULL;
         return ESP_OK;
